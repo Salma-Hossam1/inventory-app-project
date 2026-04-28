@@ -128,13 +128,13 @@ async function bootstrap() {
     SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api/docs', app, documentFactory);
 
-    // 🔹 create registry
+  // create registry
   const register = new Registry();
 
-  // 🔹 collect default metrics (CPU, memory, event loop...)
+  // collect default metrics (CPU, memory, event loop...)
   collectDefaultMetrics({ register });
 
-  // 🔹 add /metrics endpoint
+  //  add /metrics endpoint
   const server = app.getHttpAdapter().getInstance();
 
   server.get('/metrics', async (req, res) => {
