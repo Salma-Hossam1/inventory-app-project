@@ -1,0 +1,132 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+  namespace: inventory-prod
+spec:
+  serviceName: redis         # must match Service name above
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      serviceAccountName: inventory-app-sa
+
+      # ── Security: pod level ──
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999         # redis official image uses uid 999
+        runAsGroup: 999
+        fsGroup: 999
+
+      containers:
+        - name: redis-exporter
+          image: oliver006/redis_exporter:v1.58.0
+          env:
+            - name: REDIS_ADDR
+              value: "redis://localhost:6379"
+          ports:
+            - containerPort: 9121
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "100m"
+              memory: "128Mi"
+
+
+        - name: redis
+          image: redis:7-alpine
+          ports:
+            - containerPort: 6379
+
+          # ── Environment: non-sensitive from configmap ──
+          env:
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: REDIS_PORT
+          # ── Environment: sensitive from secret ──
+          # (uncomment if you set a password in the secret)
+          # env:
+          #   - name: REDIS_PASSWORD
+          #     valueFrom:
+          #       secretKeyRef:
+          #         name: redis-secret
+          #         key: REDIS_PASSWORD
+
+          # ── Start redis with AOF persistence enabled ──
+          command: ["redis-server"]
+          args:
+            - "--appendonly"
+            - "yes"            # AOF — every write is persisted to disk
+            - "--appendfsync"
+            - "everysec"       # flush to disk every second — balance of safety/perf
+            - "--save"
+            - "60 1"           # also RDB snapshot: if 1 key changed in 60s, save
+            - "--loglevel"
+            - "notice"
+
+          # ── Resources ──
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+
+          # ── Volume ──
+          volumeMounts:
+            - name: redis-storage
+              mountPath: /data  # redis writes AOF and RDB here
+
+          # ── Probes ──
+          startupProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            failureThreshold: 10
+            periodSeconds: 5    # 10 * 5s = 50s to start
+
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+
+          # ── Container security ──
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false  # redis writes AOF/RDB to /data
+            capabilities:
+              drop: ["ALL"]
+
+  # ── Persistent volume ──
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-storage
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi
+        storageClassName: standard

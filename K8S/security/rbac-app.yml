@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: inventory-app-sa
+  namespace: inventory-prod
+automountServiceAccountToken: false  # app doesn't need to talk to K8s API
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: inventory-app-role
+  namespace: inventory-prod
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets"]
+    verbs: ["get"]                     # read-only, nothing else
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: inventory-app-rolebinding
+  namespace: inventory-prod
+subjects:
+  - kind: ServiceAccount
+    name: inventory-app-sa
+    namespace: inventory-prod
+roleRef:
+  kind: Role
+  apiGroup: rbac.authorization.k8s.io
+  name: inventory-app-role

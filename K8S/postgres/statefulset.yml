@@ -1,0 +1,118 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: inventory-prod
+spec:
+  serviceName: postgres      # must match Service name above
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      serviceAccountName: inventory-app-sa
+
+      # ── Security: pod level ──
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999         # postgres official image uses uid 999
+        runAsGroup: 999
+        fsGroup: 999           # volume mounted with this group so postgres can write
+
+
+      containers:
+
+        # add inside spec.template.spec.containers — alongside the postgres container
+        - name: postgres-exporter
+          image: prometheuscommunity/postgres-exporter:v0.15.0
+          env:
+            - name: DATA_SOURCE_NAME
+              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@localhost:5432/$(POSTGRES_DB)?sslmode=disable"
+          envFrom:
+            - secretRef:
+                name: postgres-secret
+          ports:
+            - containerPort: 9187
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "100m"
+              memory: "128Mi"
+
+              # base container
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+
+          # ── Environment: non-sensitive from configmap ──
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+
+          # ── Environment: sensitive from secret ──
+          envFrom:
+            - secretRef:
+                name: postgres-secret
+
+          # ── Resources ──
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+          # ── Volume ──
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+
+          # ── Probes ──
+          startupProbe:
+            exec:
+              command: ["pg_isready", "-U", "admin", "-d", "inventory_app"]
+            failureThreshold: 30   # 30 * 10s = 5 min to start
+            periodSeconds: 10
+
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "admin", "-d", "inventory_app"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "admin", "-d", "inventory_app"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 3
+
+          # ── Container security ──
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false  # postgres needs to write temp files
+            capabilities:
+              drop: ["ALL"]
+
+          
+
+  # ── Persistent volume ──
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-storage
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 512Mi
+        storageClassName: standard
+

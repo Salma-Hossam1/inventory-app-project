@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: inventory-prod
+data:
+  NODE_ENV: "production"
+  PORT: "3000"
+  DB_HOST: "postgres"     # matches Service name exactly — same as Docker
+  DB_PORT: "5432"
+  DB_NAME: "inventory_app"
+  REDIS_HOST: "redis"     # matches Service name exactly — same as Docker
+  REDIS_PORT: "6379"
+  EMAIL_HOST: "mailpit"   # dev namespace only
+  EMAIL_PORT: "1025"
+  EMAIL_SECURE: "false"
+  DB_TYPE: "postgres"

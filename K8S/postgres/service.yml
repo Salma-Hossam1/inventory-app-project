@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres             # this is DB_HOST — must match configmap exactly
+  namespace: inventory-prod
+spec:
+  clusterIP: None            # headless — gives StatefulSet pods stable DNS
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432

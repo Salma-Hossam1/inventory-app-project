@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgadmin
+  namespace: inventory-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pgadmin
+  template:
+    metadata:
+      labels:
+        app: pgadmin
+    spec:
+      serviceAccountName: dev-tools-sa
+      # securityContext:
+      #   runAsUser: 5050            # pgadmin official image uid
+      #   runAsGroup: 5050
+      #   fsGroup: 5050
+
+      containers:
+        - name: pgadmin
+          image: dpage/pgadmin4:latest
+          ports:
+            - containerPort: 80
+
+          envFrom:
+            - secretRef:
+                name: pgadmin-secret
+          env:
+            - name: PGADMIN_CONFIG_SERVER_MODE
+              value: "False"
+            - name: PGADMIN_LISTEN_PORT
+              value: "80"
+
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+
+          # securityContext:
+          #   allowPrivilegeEscalation: false
+          #   readOnlyRootFilesystem: false  # pgadmin writes session data to disk
+          #   capabilities:
+          #     drop: ["ALL"]
+
+          volumeMounts:
+            - name: pgadmin-data
+              mountPath: /var/lib/pgadmin
+
+          readinessProbe:
+            httpGet:
+              path: /misc/ping
+              port: 80
+            initialDelaySeconds: 20
+            periodSeconds: 10
+
+      volumes:
+        - name: pgadmin-data
+          emptyDir: {}             # session data, fine to lose on restart
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pgadmin-service
+  namespace: inventory-dev
+spec:
+  selector:
+    app: pgadmin
+  ports:
+    - port: 80
+      targetPort: 80

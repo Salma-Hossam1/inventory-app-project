@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventory-app-service
+  namespace: inventory-prod
+  labels:
+    app: inventory-app
+spec:
+  type: ClusterIP
+  selector:
+    app: inventory-app
+  ports:
+    - port: 3000
+      targetPort: 3000
+      name: http

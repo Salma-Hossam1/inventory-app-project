@@ -1,0 +1,87 @@
+# ── Example: daily stock report ──
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: inventory-cron
+  namespace: inventory-prod
+
+spec:
+  schedule: "* * * * *"         # every day at midnight — same as your @Cron
+  concurrencyPolicy: Forbid        # if previous run still going, skip this one
+  failedJobsHistoryLimit: 10       # keep last 3 failed job logs
+  successfulJobsHistoryLimit: 10    # keep last 3 successful job logs
+  startingDeadlineSeconds: 60      # if missed by 60s, skip this run
+
+  jobTemplate:
+    spec:
+      backoffLimit: 2              # retry failed job 2 times
+      template:
+        spec:
+          serviceAccountName: inventory-app-sa
+          restartPolicy: OnFailure # retry on failure, don't restart forever
+
+          initContainers:
+            - name: wait-for-postgres
+              image: busybox:1.36
+              command:
+                - sh
+                - -c
+                - |
+                  for i in $(seq 1 30); do
+                    nc -z postgres 5432 && echo "postgres is up" && exit 0
+                    sleep 2
+                  done
+                  echo "postgres not reachable" && exit 1
+
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+
+          containers:
+            - name: stock-report
+              image: salmahossam12/inventory-app:v2
+
+              command: ["node", "dist/main.js"]
+
+              envFrom:
+                - configMapRef:
+                    name: app-config
+
+              env:
+                - name: START_MODE
+                  value: "scheduler"
+
+                - name: DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-secret
+                      key: POSTGRES_PASSWORD
+
+                - name: DB_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-secret
+                      key: POSTGRES_USER
+
+              volumeMounts:
+                - name: uploads
+                  mountPath: /app/uploads
+
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "128Mi"
+                limits:
+                  cpu: "300m"
+                  memory: "256Mi"
+
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+
+          volumes:
+            - name: uploads
+              emptyDir: {}

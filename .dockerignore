@@ -11,3 +11,8 @@ coverage
 data
 uploads
 postgres_data
+docker-compose.yml
+Dockerfile
+README.md
+LICENSE
+K8S
