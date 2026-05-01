@@ -9,9 +9,9 @@ pipeline {
         SONAR_SERVER = "SonarQube1"
     }
 
-    tools {
-        nodejs "nodejs"
-    }
+    // tools {
+    //     nodejs "nodejs"
+    // }
 
     stages {
 
