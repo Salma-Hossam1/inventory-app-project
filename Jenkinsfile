@@ -11,7 +11,6 @@ pipeline {
 
   tools {
     nodejs "nodejs"
-    sonarRunner "sonar-scanner"
 }
 
     stages {
@@ -44,7 +43,10 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv("${SONAR_SERVER}") {
-                     sh 'sonar-scanner'
+                     script {
+                def scannerHome = tool 'sonar-scanner'
+                sh "${scannerHome}/bin/sonar-scanner"
+            }
                 }
             }
         }
