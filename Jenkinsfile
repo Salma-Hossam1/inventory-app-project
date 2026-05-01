@@ -1,10 +1,5 @@
 pipeline {
-     agent {
-        docker {
-            image 'node:20'
-            args '-u root'
-        }
-    }
+     agent any
 
     environment {
         APP_NAME   = "inventory-app"
@@ -14,9 +9,9 @@ pipeline {
         SONAR_SERVER = "SonarQube1"
     }
 
-    // tools {
-    //     nodejs "nodejs"
-    // }
+    tools {
+        nodejs "nodejs"
+    }
 
     stages {
 
@@ -25,6 +20,13 @@ pipeline {
                 git branch: "${GIT_BRANCH}", url: "${GIT_REPO}"
             }
         }
+
+        stage('Check Node') {
+    steps {
+        sh 'node -v'
+        sh 'npm -v'
+    }
+}
 
         stage('Install Dependencies') {
             steps {
