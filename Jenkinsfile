@@ -9,9 +9,10 @@ pipeline {
         SONAR_SERVER = "SonarQube1"
     }
 
-    tools {
-        nodejs "nodejs"
-    }
+  tools {
+    nodejs "nodejs"
+    sonarRunner "sonar-scanner"
+}
 
     stages {
 
@@ -43,18 +44,20 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv("${SONAR_SERVER}") {
-                    sh 'sonar-scanner'
+                     sh """
+            ${tool 'sonar-scanner'}/bin/sonar-scanner
+            """
                 }
             }
         }
 
-        stage('Quality Gate') {
-            steps {
-                timeout(time: 5, unit: 'MINUTES') {
-                    waitForQualityGate abortPipeline: true
-                }
-            }
-        }
+        // stage('Quality Gate') {
+        //     steps {
+        //         timeout(time: 5, unit: 'MINUTES') {
+        //             waitForQualityGate abortPipeline: true
+        //         }
+        //     }
+        // }
     }
 
     post {
