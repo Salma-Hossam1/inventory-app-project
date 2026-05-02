@@ -72,18 +72,35 @@ pipeline {
         stage('trivy scan') {
             steps {
                 sh """
-                trivy image --exit-code 0 --severity HIGH,CRITICAL $REGISTRY/$IMAGE_NAME:$IMAGE_TAG
+                trivy image --no-progress --exit-code 0 --severity HIGH,CRITICAL $REGISTRY/$IMAGE_NAME:$IMAGE_TAG
                 """
             } 
         }  
+        stage('Push Image to docker hub') {
+    steps {
+        withCredentials([usernamePassword(
+            credentialsId: 'docker-hub-credentials',
+            usernameVariable: 'DOCKER_USER',
+            passwordVariable: 'DOCKER_PASS'
+        )]) {
+            sh """
+            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+            docker tag ${IMAGE_NAME}:${IMAGE_TAG} $DOCKER_USER/${IMAGE_NAME}:${IMAGE_TAG}
+            docker push $DOCKER_USER/${IMAGE_NAME}:${IMAGE_TAG}
+            """
+        }
+    }
+}
     }
 
     post {
         success {
             echo "✅ Pipeline succeeded"
+            cleanWs()
         }
         failure {
             echo "❌ Pipeline failed"
+            cleanWs()
         }
     }
 }
