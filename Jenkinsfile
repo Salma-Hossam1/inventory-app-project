@@ -7,6 +7,10 @@ pipeline {
         GIT_BRANCH = "master"
         SONAR_HOST_URL = "http://sonarqube:9000"
         SONAR_SERVER = "SonarQube1"
+
+        IMAGE_NAME = "inventory-app"
+        IMAGE_TAG = "${env.GIT_COMMIT}"
+        REGISTRY = "salmahossam12"
     }
 
   tools {
@@ -58,6 +62,19 @@ pipeline {
         //         }
         //     }
         // }
+        stage('Build Image') {
+            steps {
+                sh """
+                docker build -t $REGISTRY/$IMAGE_NAME:$IMAGE_TAG .
+                """
+            }
+        }
+        stage('trivy scan') {
+            steps {
+                sh """
+                trivy image --exit-code 0 --severity HIGH,CRITICAL $REGISTRY/$IMAGE_NAME:$IMAGE_TAG
+                """
+            }   
     }
 
     post {
