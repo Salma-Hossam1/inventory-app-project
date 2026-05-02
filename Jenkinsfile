@@ -74,7 +74,8 @@ pipeline {
                 sh """
                 trivy image --exit-code 0 --severity HIGH,CRITICAL $REGISTRY/$IMAGE_NAME:$IMAGE_TAG
                 """
-            }   
+            } 
+        }  
     }
 
     post {
