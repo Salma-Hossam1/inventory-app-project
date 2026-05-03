@@ -114,13 +114,13 @@ pipeline {
 
             yq -i '
               (.spec.template.spec.containers[] 
-              | select(.name == "inventory-app") 
+              | select(.name == "inventory-worker") 
               | .image) = "$REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
             ' worker.yaml
 
             yq -i '
               (.spec.template.spec.containers[] 
-              | select(.name == "inventory-app") 
+              | select(.name == "stock-report") 
               | .image) = "$REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
             ' cron.yaml
 
