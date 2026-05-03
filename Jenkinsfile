@@ -90,6 +90,52 @@ pipeline {
         }
     }
 }
+       stage('Update GitOps Repo') {
+    steps {
+        withCredentials([usernamePassword(
+            credentialsId: 'github-creds',
+            usernameVariable: 'GIT_USER',
+            passwordVariable: 'GIT_PASS'
+        )]) {
+
+            sh """
+            rm -rf inventory-gitops
+
+            git clone https://$GIT_USER:$GIT_PASS@github.com/Salma-Hossam1/inventory-gitops.git
+
+            cd inventory-gitops/prod
+
+            # update ONLY main containers (not initContainers)
+            yq -i '
+              (.spec.template.spec.containers[] 
+              | select(.name == "inventory-app") 
+              | .image) = "$REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
+            ' deployment.yaml
+
+            yq -i '
+              (.spec.template.spec.containers[] 
+              | select(.name == "inventory-app") 
+              | .image) = "$REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
+            ' worker.yaml
+
+            yq -i '
+              (.spec.template.spec.containers[] 
+              | select(.name == "inventory-app") 
+              | .image) = "$REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
+            ' cron.yaml
+
+            cd ..
+
+            git config user.name "jenkins"
+            git config user.email "jenkins@ci.com"
+
+            git add .
+            git commit -m "Update image to $IMAGE_TAG"
+            git push
+            """
+        }
+    }
+}
     }
 
     post {
