@@ -110,19 +110,19 @@ pipeline {
             cd inventory-gitops/prod
 
             # update ONLY main containers (not initContainers)
-            yq -i '
+            ../yq -i '
               (.spec.template.spec.containers[] 
               | select(.name == "inventory-app") 
               | .image) = "$REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
             ' deployment.yaml
 
-            yq -i '
+            ../yq -i '
               (.spec.template.spec.containers[] 
               | select(.name == "inventory-worker") 
               | .image) = "$REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
             ' worker.yaml
 
-            yq -i '
+            ../yq -i '
               (.spec.template.spec.containers[] 
               | select(.name == "stock-report") 
               | .image) = "$REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
