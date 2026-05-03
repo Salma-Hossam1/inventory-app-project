@@ -100,6 +100,10 @@ pipeline {
 
             sh """
             rm -rf inventory-gitops
+            
+            # install yq locally
+            wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O yq
+            chmod +x yq
 
             git clone https://$GIT_USER:$GIT_PASS@github.com/Salma-Hossam1/inventory-gitops.git
 
