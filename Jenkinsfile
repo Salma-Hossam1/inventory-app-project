@@ -11,6 +11,8 @@ pipeline {
         IMAGE_NAME = "inventory-app"
         IMAGE_TAG = "${env.GIT_COMMIT}"
         REGISTRY = "salmahossam12"
+        // Slack Configuration
+        SLACK_CHANNEL  = "#jenkins-ci"
     }
 
   tools {
@@ -88,58 +90,61 @@ pipeline {
             docker push $DOCKER_USER/${IMAGE_NAME}:${IMAGE_TAG}
             """
         }
+        // Send specific Slack notification for the push
+                slackSend(channel: "${SLACK_CHANNEL}", color: 'good', 
+                          message: "🚀 *Docker Image Pushed!* \nImage: `${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}`")
     }
 }
-       stage('Update GitOps Repo') {
-    steps {
-        withCredentials([usernamePassword(
-            credentialsId: 'github-creds',
-            usernameVariable: 'GIT_USER',
-            passwordVariable: 'GIT_PASS'
-        )]) {
+//        stage('Update GitOps Repo') {
+//     steps {
+//         withCredentials([usernamePassword(
+//             credentialsId: 'github-creds',
+//             usernameVariable: 'GIT_USER',
+//             passwordVariable: 'GIT_PASS'
+//         )]) {
 
-            sh """
-            rm -rf inventory-gitops
+//             sh """
+//             rm -rf inventory-gitops
             
-            # install yq locally
-            wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O yq
-            chmod +x yq
+//             # install yq locally
+//             wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O yq
+//             chmod +x yq
 
-            git clone https://$GIT_USER:$GIT_PASS@github.com/Salma-Hossam1/inventory-gitops.git
+//             git clone https://$GIT_USER:$GIT_PASS@github.com/Salma-Hossam1/inventory-gitops.git
 
-            cd inventory-gitops/prod
+//             cd inventory-gitops/prod
 
-            # update ONLY main containers (not initContainers)
-            ../../yq -i '
-              (.spec.template.spec.containers[] 
-              | select(.name == "inventory-app") 
-              | .image) = "$REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
-            ' deployment.yaml
+//             # update ONLY main containers (not initContainers)
+//             ../../yq -i '
+//               (.spec.template.spec.containers[] 
+//               | select(.name == "inventory-app") 
+//               | .image) = "$REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
+//             ' deployment.yaml
 
-            ../../yq -i '
-              (.spec.template.spec.containers[] 
-              | select(.name == "inventory-worker") 
-              | .image) = "$REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
-            ' worker.yaml
+//             ../../yq -i '
+//               (.spec.template.spec.containers[] 
+//               | select(.name == "inventory-worker") 
+//               | .image) = "$REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
+//             ' worker.yaml
 
-            ../../yq -i '
-              (.spec.template.spec.containers[] 
-              | select(.name == "stock-report") 
-              | .image) = "$REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
-            ' cron.yaml
+//             ../../yq -i '
+//               (.spec.template.spec.containers[] 
+//               | select(.name == "stock-report") 
+//               | .image) = "$REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
+//             ' cron.yaml
 
-            cd ..
+//             cd ..
 
-            git config user.name "jenkins"
-            git config user.email "jenkins@ci.com"
+//             git config user.name "jenkins"
+//             git config user.email "jenkins@ci.com"
 
-            git add .
-            git commit -m "Update image to $IMAGE_TAG"
-            git push
-            """
-        }
-    }
-}
+//             git add .
+//             git commit -m "Update image to $IMAGE_TAG"
+//             git push
+//             """
+//         }
+//     }
+// }
     }
 
     post {
