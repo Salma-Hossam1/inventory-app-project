@@ -175,7 +175,7 @@ stage('Update GitOps Repo') {
             if [ -n "\$(git status --porcelain)" ]; then
                 git add .
                 git commit -m "Update image to $IMAGE_TAG"
-                git push origin master
+                git push origin main
             else
                 echo "No changes detected in YAML files. Skipping push."
             fi
