@@ -61,40 +61,43 @@ pipeline {
                 env.SONAR_STATUS = qg.status
                 
                 try {
-                    // 1. Read the project key and server URL
+                    // 1. Grab project key from scanner report
                     def props = readProperties file: '.scannerwork/report-task.txt'
                     def projectKey = props['projectKey']
-                    def sonarUrl = props['serverUrl']
                     
-                    // 2. Query SonarQube API using the container name domain
-                    def metricKeys = "coverage,bugs,vulnerabilities,code_smells"
-                    def response = sh(
-                        script: "curl -s 'http://sonarqube:9000/api/measures/component?component=${projectKey}&metricKeys=${metricKeys}'", 
-                        returnStdout: true
-                    ).trim()
-                    
-                    // 3. Parse JSON safely
-                    def json = new groovy.json.JsonSlurper().parseText(response)
-                    
-                    if (json && json.component && json.component.measures) {
-                        def measures = json.component.measures
+                    // 2. Use Jenkins credentials to safely pass a token to curl
+                    // Replace 'sonar-token-id' with your actual Jenkins credential ID for SonarQube if different
+                    withCredentials([string(credentialsId: 'sonar-token-id', variable: 'SONAR_TOKEN')]) {
                         
-                        // Extract metrics with safe navigation (?.) and fallbacks
-                        def covObj = measures.find { it.metric == 'coverage' }
-                        env.SONAR_COVERAGE = covObj ? "${covObj.value}%" : "0%"
+                        def metricKeys = "coverage,bugs,vulnerabilities,code_smells"
                         
-                        env.SONAR_BUGS   = measures.find { it.metric == 'bugs' }?.value ?: "0"
-                        env.SONAR_VULNS  = measures.find { it.metric == 'vulnerabilities' }?.value ?: "0"
-                        env.SONAR_SMELLS = measures.find { it.metric == 'code_smells' }?.value ?: "0"
-                    } else {
-                        // Fallback if no measures array exists yet
-                        env.SONAR_COVERAGE = "N/A"
-                        env.SONAR_BUGS     = "N/A"
-                        env.SONAR_VULNS    = "N/A"
-                        env.SONAR_SMELLS   = "N/A"
+                        // Use basic authentication (-u) passing the token
+                        def response = sh(
+                            script: "curl -s -u \$SONAR_TOKEN: 'http://sonarqube:9000/api/measures/component?component=${projectKey}&metricKeys=${metricKeys}'", 
+                            returnStdout: true
+                        ).trim()
+                        
+                        // 3. Parse JSON safely
+                        def json = new groovy.json.JsonSlurper().parseText(response)
+                        
+                        if (json && json.component && json.component.measures) {
+                            def measures = json.component.measures
+                            
+                            def covObj = measures.find { it.metric == 'coverage' }
+                            env.SONAR_COVERAGE = covObj ? "${covObj.value}%" : "0%"
+                            
+                            env.SONAR_BUGS     = measures.find { it.metric == 'bugs' }?.value ?: "0"
+                            env.SONAR_VULNS    = measures.find { it.metric == 'vulnerabilities' }?.value ?: "0"
+                            env.SONAR_SMELLS   = measures.find { it.metric == 'code_smells' }?.value ?: "0"
+                        } else {
+                            env.SONAR_COVERAGE = "N/A"
+                            env.SONAR_BUGS     = "N/A"
+                            env.SONAR_VULNS    = "N/A"
+                            env.SONAR_SMELLS   = "N/A"
+                        }
                     }
                 } catch (Exception e) {
-                    echo "⚠️ Failed to parse SonarQube metrics, using defaults: ${e.getMessage()}"
+                    echo "⚠️ Failed to parse SonarQube metrics: ${e.toString()}"
                     env.SONAR_COVERAGE = "Error"
                     env.SONAR_BUGS     = "Error"
                     env.SONAR_VULNS    = "Error"
