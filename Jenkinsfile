@@ -223,24 +223,58 @@ stage('Update GitOps Repo') {
         }
     }
 }
-        stage('Verify K8s ArgoCD Deployment') {
+//         stage('Verify K8s ArgoCD Deployment') {
+//     steps {
+//         script {
+//             echo "Waiting 30 seconds for ArgoCD to detect Git push..."
+//             sleep 30 
+            
+//             // 1. Safely pull the password string out of Jenkins storage
+//             withCredentials([string(credentialsId: 'argocd-admin-password', variable: 'ARGO_PASS')]) {
+                
+//                 def argoServer = "172.27.0.1:8081"
+//                 def argoUser   = "admin"
+                
+//                 // 2. Pass the environment variable ($ARGO_PASS) to the shell command
+//                 def argoCmd = "argocd app get inventory-app --server ${argoServer} --username ${argoUser} --password \$ARGO_PASS --insecure -o json"
+                
+//                 env.ARGO_SYNC   = sh(script: "${argoCmd} | jq -r '.status.sync.status'", returnStdout: true).trim()
+//                 env.ARGO_HEALTH = sh(script: "${argoCmd} | jq -r '.status.health.status'", returnStdout: true).trim()
+//                 env.K8S_NS      = sh(script: "${argoCmd} | jq -r '.spec.destination.namespace'", returnStdout: true).trim()
+                
+//                 echo "☸️ ArgoCD Live Stats -> Sync: ${env.ARGO_SYNC} | Health: ${env.ARGO_HEALTH}"
+//             }
+//         }
+//     }
+// }
+stage('Verify K8s ArgoCD Deployment') {
     steps {
         script {
             echo "Waiting 30 seconds for ArgoCD to detect Git push..."
             sleep 30 
             
-            // 1. Safely pull the password string out of Jenkins storage
             withCredentials([string(credentialsId: 'argocd-admin-password', variable: 'ARGO_PASS')]) {
                 
                 def argoServer = "172.27.0.1:8081"
                 def argoUser   = "admin"
                 
-                // 2. Pass the environment variable ($ARGO_PASS) to the shell command
-                def argoCmd = "argocd app get inventory-app --server ${argoServer} --username ${argoUser} --password \$ARGO_PASS --insecure -o json"
+                echo "🔑 Generating temporary ArgoCD session token..."
+                // 1. Authenticate and extract ONLY the raw token string (hiding warnings via standard bash routing)
+                def token = sh(
+                    script: "argocd account generate-token --server ${argoServer} --username ${argoUser} --password \$ARGO_PASS --insecure 2>/dev/null || argocd token session --server ${argoServer} --username ${argoUser} --password \$ARGO_PASS --insecure",
+                    returnStdout: true
+                ).trim()
                 
-                env.ARGO_SYNC   = sh(script: "${argoCmd} | jq -r '.status.sync.status'", returnStdout: true).trim()
-                env.ARGO_HEALTH = sh(script: "${argoCmd} | jq -r '.status.health.status'", returnStdout: true).trim()
-                env.K8S_NS      = sh(script: "${argoCmd} | jq -r '.spec.destination.namespace'", returnStdout: true).trim()
+                // If token generation is tricky across versions, fallback to a clean temporary login command:
+                if (!token) {
+                    sh "argocd login ${argoServer} --username ${argoUser} --password \$ARGO_PASS --insecure"
+                }
+
+                echo "☸️ Fetching clean application deployment metrics..."
+                // 2. Query using the clean configs profile, stripping away warnings
+                env.ARGO_SYNC   = sh(script: "argocd app get inventory-app --server ${argoServer} --insecure -o json 2>/dev/null | jq -r '.status.sync.status'", returnStdout: true).trim()
+                env.ARGO_HEALTH = sh(script: "argocd app get inventory-app --server ${argoServer} --insecure -o json 2>/dev/null | jq -r '.status.health.status'", returnStdout: true).trim()
+                env.K8S_NS      = sh(script: "argocd app get inventory-app --server ${argoServer} --insecure -o json 2>/dev/null | jq -r '.spec.destination.namespace'", returnStdout: true).trim()
                 
                 echo "☸️ ArgoCD Live Stats -> Sync: ${env.ARGO_SYNC} | Health: ${env.ARGO_HEALTH}"
             }
