@@ -122,22 +122,36 @@ pipeline {
                 """
             }
         }
-        stage('trivy scan') {
-            steps {
+
+        stage('Trivy Security Scan') {
+    steps {
                 // sh """
                 // trivy image --no-progress --exit-code 0 --severity HIGH,CRITICAL $REGISTRY/$IMAGE_NAME:$IMAGE_TAG
                 // """
-                script {
-                    // Run scan and output results to a JSON file for parsing, ignoring exit code so pipeline continues
-                    sh "trivy image --format json --output trivy-report.json --severity HIGH,CRITICAL $REGISTRY/$IMAGE_NAME:$IMAGE_TAG || true"
-                    
-                    // Parse counts using grep/jq/awk depending on what's available in your container. 
-                    // This is a robust fallback script to grab vulnerability sums:
-                    env.CRITICAL_COUNT = sh(script: "grep -o '\"Severity\":\"CRITICAL\"' trivy-report.json | wc -l", returnStdout: true).trim()
-                    env.HIGH_COUNT     = sh(script: "grep -o '\"Severity\":\"HIGH\"' trivy-report.json | wc -l", returnStdout: true).trim()
-                }
-            } 
-        }  
+        script {
+            // 1. Run the scan and output JSON format
+            sh "trivy image --format json --output trivy-report.json --severity HIGH,CRITICAL $REGISTRY/$IMAGE_NAME:$IMAGE_TAG || true"
+            
+            // 2. Use jq to parse and sum the exact vulnerability counts safely
+            // We use standard shell utilities to clean up whitespace from the command output
+            env.CRITICAL_COUNT = sh(
+                script: "jq '[.Results[].Vulnerabilities[]? | select(.Severity==\"CRITICAL\")] | length' trivy-report.json", 
+                returnStdout: true
+            ).trim()
+            
+            env.HIGH_COUNT = sh(
+                script: "jq '[.Results[].Vulnerabilities[]? | select(.Severity==\"HIGH\")] | length' trivy-report.json", 
+                returnStdout: true
+            ).trim()
+            
+            // Fallback to 0 if the variables happen to be empty strings
+            if (!env.CRITICAL_COUNT) env.CRITICAL_COUNT = "0"
+            if (!env.HIGH_COUNT) env.HIGH_COUNT = "0"
+            
+            echo "🛡️ Trivy Count parsed -> Critical: ${env.CRITICAL_COUNT} | High: ${env.HIGH_COUNT}"
+        }
+    } 
+}
         stage('Push Image to docker hub') {
     steps {
         withCredentials([usernamePassword(
