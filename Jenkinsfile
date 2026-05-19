@@ -67,7 +67,7 @@ pipeline {
                     
                     // 2. Use Jenkins credentials to safely pass a token to curl
                     // Replace 'sonar-token-id' with your actual Jenkins credential ID for SonarQube if different
-                    withCredentials([string(credentialsId: 'sonar-token-id', variable: 'SONAR_TOKEN')]) {
+                    withCredentials([string(credentialsId: 'Jenkins-SonarQubeServer1', variable: 'SONAR_TOKEN')]) {
                         
                         def metricKeys = "coverage,bugs,vulnerabilities,code_smells"
                         
