@@ -229,13 +229,21 @@ stage('Update GitOps Repo') {
             echo "Waiting 30 seconds for ArgoCD to detect Git push..."
             sleep 30 
             
-            // Pull live operational data right out of the ArgoCD engine
-            // 1. Get raw JSON using '-o json' and then filter precisely with jq
-            env.ARGO_SYNC   = sh(script: "argocd app get inventory-app -o json | jq -r '.status.sync.status'", returnStdout: true).trim()
-            env.ARGO_HEALTH = sh(script: "argocd app get inventory-app -o json | jq -r '.status.health.status'", returnStdout: true).trim()
-            env.K8S_NS      = sh(script: "argocd app get inventory-app -o json | jq -r '.spec.destination.namespace'", returnStdout: true).trim()
-            
-            echo "☸️ ArgoCD Live Stats -> Sync: ${env.ARGO_SYNC} | Health: ${env.ARGO_HEALTH}"
+            // 1. Safely pull the password string out of Jenkins storage
+            withCredentials([string(credentialsId: 'argocd-admin-password', variable: 'ARGO_PASS')]) {
+                
+                def argoServer = "172.27.0.1:8081"
+                def argoUser   = "admin"
+                
+                // 2. Pass the environment variable ($ARGO_PASS) to the shell command
+                def argoCmd = "argocd app get inventory-app --server ${argoServer} --username ${argoUser} --password \$ARGO_PASS --insecure -o json"
+                
+                env.ARGO_SYNC   = sh(script: "${argoCmd} | jq -r '.status.sync.status'", returnStdout: true).trim()
+                env.ARGO_HEALTH = sh(script: "${argoCmd} | jq -r '.status.health.status'", returnStdout: true).trim()
+                env.K8S_NS      = sh(script: "${argoCmd} | jq -r '.spec.destination.namespace'", returnStdout: true).trim()
+                
+                echo "☸️ ArgoCD Live Stats -> Sync: ${env.ARGO_SYNC} | Health: ${env.ARGO_HEALTH}"
+            }
         }
     }
 }
