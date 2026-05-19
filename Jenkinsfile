@@ -223,19 +223,22 @@ stage('Update GitOps Repo') {
         }
     }
 }
-stage('Verify K8s ArgoCD Deployment') {
-            steps {
-                script {
-                    echo "Waiting 30 seconds for ArgoCD to detect Git push..."
-                    sleep 30 
-                    
-                    // Pull live operational data right out of the ArgoCD engine
-                    env.ARGO_SYNC   = sh(script: "argocd app get inventory-app --fields format=json | jq -r '.status.sync.status'", returnStdout: true).trim()
-                    env.ARGO_HEALTH = sh(script: "argocd app get inventory-app --fields format=json | jq -r '.status.health.status'", returnStdout: true).trim()
-                    env.K8S_NS      = sh(script: "argocd app get inventory-app --fields format=json | jq -r '.spec.destination.namespace'", returnStdout: true).trim()
-                }
-            }
+        stage('Verify K8s ArgoCD Deployment') {
+    steps {
+        script {
+            echo "Waiting 30 seconds for ArgoCD to detect Git push..."
+            sleep 30 
+            
+            // Pull live operational data right out of the ArgoCD engine
+            // 1. Get raw JSON using '-o json' and then filter precisely with jq
+            env.ARGO_SYNC   = sh(script: "argocd app get inventory-app -o json | jq -r '.status.sync.status'", returnStdout: true).trim()
+            env.ARGO_HEALTH = sh(script: "argocd app get inventory-app -o json | jq -r '.status.health.status'", returnStdout: true).trim()
+            env.K8S_NS      = sh(script: "argocd app get inventory-app -o json | jq -r '.spec.destination.namespace'", returnStdout: true).trim()
+            
+            echo "☸️ ArgoCD Live Stats -> Sync: ${env.ARGO_SYNC} | Health: ${env.ARGO_HEALTH}"
         }
+    }
+}
     }
 
     post {
