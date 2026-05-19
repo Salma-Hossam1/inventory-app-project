@@ -145,6 +145,44 @@ pipeline {
 //         }
 //     }
 // }
+stage('Update GitOps Repo') {
+    steps {
+        withCredentials([usernamePassword(
+            credentialsId: 'github-creds',
+            usernameVariable: 'GIT_USER',
+            passwordVariable: 'GIT_PASS'
+        )]) {
+            sh """
+            # 1. Clean up and Download yq
+            rm -rf inventory-gitops
+            curl -L https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -o yq
+            chmod +x yq
+            export YQ_PATH=\$(pwd)/yq
+
+            # 2. Clone using credentials safely
+            git clone https://${GIT_USER}:${GIT_PASS}@github.com/Salma-Hossam1/inventory-gitops.git
+            cd inventory-gitops/prod/app
+
+            # 3. Update YAMLs using absolute path for yq
+            \$YQ_PATH -i '(.spec.template.spec.containers[] | select(.name == "inventory-app") | .image) = "$REGISTRY/$IMAGE_NAME:$IMAGE_TAG"' deployment.yaml
+            \$YQ_PATH -i '(.spec.template.spec.containers[] | select(.name == "inventory-worker") | .image) = "$REGISTRY/$IMAGE_NAME:$IMAGE_TAG"' worker.yaml
+            \$YQ_PATH -i '(.spec.template.spec.containers[] | select(.name == "stock-report") | .image) = "$REGISTRY/$IMAGE_NAME:$IMAGE_TAG"' cron.yaml
+
+            # 4. Commit and Push only if changes exist
+            git config user.name "jenkins"
+            git config user.email "jenkins@ci.com"
+            
+            if [ -n "\$(git status --porcelain)" ]; then
+                git add .
+                git commit -m "Update image to $IMAGE_TAG"
+                git push origin master
+            else
+                echo "No changes detected in YAML files. Skipping push."
+            fi
+            """
+        }
+    }
+}
     }
 
     post {
